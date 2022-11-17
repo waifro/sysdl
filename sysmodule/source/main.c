@@ -2,9 +2,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 // Include the main libnx system header, for Switch development
 #include <switch.h>
+
+#include "dl.h"
+#include "log.h"
+
+	#include <netinet/in.h>
+	#include <sys/socket.h>
+	#include <sys/types.h>
+	#include <arpa/inet.h>
+	#include <netdb.h>
 
 // Size of the inner heap (adjust as necessary).
 #define INNER_HEAP_SIZE 0x80000
@@ -35,7 +45,10 @@ void __libnx_initheap(void)
 void __appInit(void)
 {
     Result rc;
-
+	
+	svcSleepThread(10000000000L);
+	svcSleepThread(10000000000L);
+	
     // Open a service manager session.
     rc = smInitialize();
     if (R_FAILED(rc))
@@ -70,8 +83,25 @@ void __appInit(void)
 
     // Disable this if you don't want to use the SD card filesystem.
     fsdevMountSdmc();
+	
+	static const SocketInitConfig socketInitConfig = {
+        .bsdsockets_version = 1,
 
-    // Add other services you want to use here.
+        .tcp_tx_buf_size = 0x800,
+        .tcp_rx_buf_size = 0x800,
+        .tcp_tx_buf_max_size = 0x25000,
+        .tcp_rx_buf_max_size = 0x25000,
+
+        //We don't use UDP, set all UDP buffers to 0
+        .udp_tx_buf_size = 0,
+        .udp_rx_buf_size = 0,
+
+        .sb_efficiency = 1,
+    };
+    rc = socketInitialize(&socketInitConfig);
+	
+	if (R_FAILED(rc))
+        diagAbortWithResult(MAKERESULT(Module_Libnx, LibnxError_InitFail_FS));
 
     // Close the service manager session.
     smExit();
@@ -81,7 +111,9 @@ void __appInit(void)
 void __appExit(void)
 {
     // Close extra services you added to __appInit here.
-    fsdevUnmountAll(); // Disable this if you don't want to use the SD card filesystem.
+    
+	socketExit();
+	fsdevUnmountAll(); // Disable this if you don't want to use the SD card filesystem.
     fsExit(); // Disable this if you don't want to use the filesystem.
     //timeExit(); // Enable this if you want to use time.
     //hidExit(); // Enable this if you want to use HID.
@@ -95,22 +127,25 @@ void __appExit(void)
 int main(int argc, char* argv[])
 {
     // Initialization code can go here.
-	//__libnx_initheap();
-	//__appInit();
+
 	
     // Your code / main loop goes here.
     // If you need threads, you can use threadCreate etc.
 	
-	FILE *fd = fopen("/test.txt", "w");
-	if (fd == NULL) return -1;
+	log_error("started ###### \n");
 	
-	char *hello = "fuckk\n";
-	fwrite(hello, 0x01, (size_t)strlen(hello), fd);
+	dl_init();
 	
-	fclose(fd);
+	log_error("initialized ## ## ## ## \n");
+	
+	dl_start();
+	
+	dl_exit();
+	
+	log_error("finish ####### \n");
 	
     // Deinitialization and resources clean up code can go here.
-	//__appExit();
+
 	
     return 0;
 }
